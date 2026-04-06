@@ -10,6 +10,14 @@ export type RegisteredUser = {
   updatedAt: string;
 };
 
+export type UserProfile = {
+  email: string;
+  fullName: string;
+  phone: string;
+  city: string;
+  updatedAt: string;
+};
+
 export type AuthActionResult = {
   ok: boolean;
   message?: string;

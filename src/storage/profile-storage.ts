@@ -1,0 +1,79 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+import type { UserProfile } from '../types/auth';
+
+const PROFILES_STORAGE_KEY = 'rozetka-team-project:profiles';
+
+function isValidStoredProfile(value: Partial<UserProfile>): value is UserProfile {
+  return (
+    typeof value.email === 'string' &&
+    typeof value.fullName === 'string' &&
+    typeof value.phone === 'string' &&
+    typeof value.city === 'string' &&
+    typeof value.updatedAt === 'string'
+  );
+}
+
+async function loadProfiles() {
+  try {
+    const rawValue = await AsyncStorage.getItem(PROFILES_STORAGE_KEY);
+
+    if (!rawValue) {
+      return [] as UserProfile[];
+    }
+
+    const parsedValue = JSON.parse(rawValue) as unknown;
+
+    if (!Array.isArray(parsedValue)) {
+      await AsyncStorage.removeItem(PROFILES_STORAGE_KEY);
+      return [] as UserProfile[];
+    }
+
+    const profiles = parsedValue.filter((item): item is UserProfile => {
+      if (!item || typeof item !== 'object') {
+        return false;
+      }
+
+      return isValidStoredProfile(item as Partial<UserProfile>);
+    });
+
+    if (profiles.length !== parsedValue.length) {
+      await AsyncStorage.setItem(PROFILES_STORAGE_KEY, JSON.stringify(profiles));
+    }
+
+    return profiles;
+  } catch {
+    await AsyncStorage.removeItem(PROFILES_STORAGE_KEY);
+    return [] as UserProfile[];
+  }
+}
+
+export async function loadUserProfile(email: string) {
+  const profiles = await loadProfiles();
+  const normalizedEmail = email.trim().toLowerCase();
+
+  return (
+    profiles.find((profile) => profile.email.trim().toLowerCase() === normalizedEmail) ?? null
+  );
+}
+
+export async function saveUserProfile(profile: UserProfile) {
+  const profiles = await loadProfiles();
+  const normalizedEmail = profile.email.trim().toLowerCase();
+  const nextProfile = {
+    ...profile,
+    email: normalizedEmail,
+  };
+  const profileIndex = profiles.findIndex(
+    (item) => item.email.trim().toLowerCase() === normalizedEmail
+  );
+
+  if (profileIndex === -1) {
+    await AsyncStorage.setItem(PROFILES_STORAGE_KEY, JSON.stringify([...profiles, nextProfile]));
+    return;
+  }
+
+  const updatedProfiles = [...profiles];
+  updatedProfiles[profileIndex] = nextProfile;
+  await AsyncStorage.setItem(PROFILES_STORAGE_KEY, JSON.stringify(updatedProfiles));
+}
