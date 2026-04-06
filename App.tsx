@@ -3,9 +3,11 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { CartScreen } from './src/screens/cart-screen';
 import { ChangePasswordScreen } from './src/screens/change-password-screen';
 import { HomeScreen } from './src/screens/home-screen';
 import { LoginScreen } from './src/screens/login-screen';
+import { ProfileScreen } from './src/screens/profile-screen';
 import { RecoveryScreen } from './src/screens/recovery-screen';
 import { RegisterScreen } from './src/screens/register-screen';
 import { clearSession, loadSession, saveSession } from './src/storage/session-storage';
@@ -14,7 +16,7 @@ import { colors } from './src/theme/colors';
 import type { AuthActionResult, AuthSession, RegisteredUser } from './src/types/auth';
 
 type AuthScreen = 'login' | 'register' | 'recovery';
-type CabinetScreen = 'home' | 'change-password';
+type CabinetScreen = 'home' | 'profile' | 'change-password' | 'cart';
 
 export default function App() {
   const [session, setSession] = useState<AuthSession | null>(null);
@@ -230,6 +232,11 @@ export default function App() {
     return { ok: true };
   };
 
+  const handleProfileSaved = (message: string) => {
+    setCabinetNotice(message);
+    setCabinetScreen('home');
+  };
+
   const handleLogout = async () => {
     setLastEmail(session?.email ?? lastEmail);
     setSession(null);
@@ -260,6 +267,16 @@ export default function App() {
     setCabinetScreen('change-password');
   };
 
+  const openProfile = () => {
+    setCabinetNotice('');
+    setCabinetScreen('profile');
+  };
+
+  const openCart = () => {
+    setCabinetNotice('');
+    setCabinetScreen('cart');
+  };
+
   const openCabinetHome = () => {
     setCabinetNotice('');
     setCabinetScreen('home');
@@ -273,7 +290,15 @@ export default function App() {
           <ActivityIndicator size="large" color={colors.accent} />
         </View>
       ) : session ? (
-        cabinetScreen === 'change-password' ? (
+        cabinetScreen === 'cart' ? (
+          <CartScreen email={session.email} onBack={openCabinetHome} />
+        ) : cabinetScreen === 'profile' ? (
+          <ProfileScreen
+            email={session.email}
+            onBack={openCabinetHome}
+            onSaved={handleProfileSaved}
+          />
+        ) : cabinetScreen === 'change-password' ? (
           <ChangePasswordScreen
             email={session.email}
             onChangePassword={handleChangePassword}
@@ -283,6 +308,8 @@ export default function App() {
           <HomeScreen
             session={session}
             notice={cabinetNotice}
+            onOpenCart={openCart}
+            onOpenProfile={openProfile}
             onOpenChangePassword={openChangePassword}
             onLogout={handleLogout}
           />

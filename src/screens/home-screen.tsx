@@ -9,6 +9,8 @@ import type { AuthSession } from '../types/auth';
 type HomeScreenProps = {
   session: AuthSession;
   notice?: string;
+  onOpenCart: () => void;
+  onOpenProfile: () => void;
   onOpenChangePassword: () => void;
   onLogout: () => void;
 };
@@ -23,6 +25,8 @@ const quickSections = [
 export function HomeScreen({
   session,
   notice = '',
+  onOpenCart,
+  onOpenProfile,
   onOpenChangePassword,
   onLogout,
 }: HomeScreenProps) {
@@ -58,14 +62,18 @@ export function HomeScreen({
         </View>
 
         <View style={styles.noteCard}>
-          <Text style={styles.sectionLabel}>{notice ? 'Оновлення безпеки' : 'Поточний статус'}</Text>
+          <Text style={styles.sectionLabel}>{notice ? 'Остання дія' : 'Поточний статус'}</Text>
           <Text style={styles.noteText}>
             {notice ||
               'Вхід уже працює: сесія зберігається, а після повторного запуску користувач залишається в кабінеті.'}
           </Text>
         </View>
 
-        <PrimaryButton title="Змінити пароль" onPress={onOpenChangePassword} />
+        <PrimaryButton title="Мій кошик" onPress={onOpenCart} />
+        <View style={styles.actionsGap} />
+        <PrimaryButton title="Мій профіль" onPress={onOpenProfile} variant="secondary" />
+        <View style={styles.actionsGap} />
+        <PrimaryButton title="Змінити пароль" onPress={onOpenChangePassword} variant="secondary" />
         <View style={styles.actionsGap} />
         <PrimaryButton title="Вийти з акаунта" onPress={onLogout} variant="secondary" />
       </ScrollView>
