@@ -5,8 +5,10 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { CartScreen } from './src/screens/cart-screen';
 import { ChangePasswordScreen } from './src/screens/change-password-screen';
+import { CheckoutScreen } from './src/screens/checkout-screen';
 import { HomeScreen } from './src/screens/home-screen';
 import { LoginScreen } from './src/screens/login-screen';
+import { OrdersScreen } from './src/screens/orders-screen';
 import { ProfileScreen } from './src/screens/profile-screen';
 import { RecoveryScreen } from './src/screens/recovery-screen';
 import { RegisterScreen } from './src/screens/register-screen';
@@ -16,7 +18,7 @@ import { colors } from './src/theme/colors';
 import type { AuthActionResult, AuthSession, RegisteredUser } from './src/types/auth';
 
 type AuthScreen = 'login' | 'register' | 'recovery';
-type CabinetScreen = 'home' | 'profile' | 'change-password' | 'cart';
+type CabinetScreen = 'home' | 'profile' | 'change-password' | 'cart' | 'checkout' | 'orders';
 
 export default function App() {
   const [session, setSession] = useState<AuthSession | null>(null);
@@ -237,6 +239,11 @@ export default function App() {
     setCabinetScreen('home');
   };
 
+  const handleOrderPlaced = (message: string) => {
+    setCabinetNotice(message);
+    setCabinetScreen('home');
+  };
+
   const handleLogout = async () => {
     setLastEmail(session?.email ?? lastEmail);
     setSession(null);
@@ -277,6 +284,16 @@ export default function App() {
     setCabinetScreen('cart');
   };
 
+  const openCheckout = () => {
+    setCabinetNotice('');
+    setCabinetScreen('checkout');
+  };
+
+  const openOrders = () => {
+    setCabinetNotice('');
+    setCabinetScreen('orders');
+  };
+
   const openCabinetHome = () => {
     setCabinetNotice('');
     setCabinetScreen('home');
@@ -290,8 +307,20 @@ export default function App() {
           <ActivityIndicator size="large" color={colors.accent} />
         </View>
       ) : session ? (
-        cabinetScreen === 'cart' ? (
-          <CartScreen email={session.email} onBack={openCabinetHome} />
+        cabinetScreen === 'orders' ? (
+          <OrdersScreen
+            email={session.email}
+            onBack={openCabinetHome}
+            onOpenCart={openCart}
+          />
+        ) : cabinetScreen === 'checkout' ? (
+          <CheckoutScreen
+            email={session.email}
+            onBack={openCart}
+            onPlaced={handleOrderPlaced}
+          />
+        ) : cabinetScreen === 'cart' ? (
+          <CartScreen email={session.email} onBack={openCabinetHome} onOpenCheckout={openCheckout} />
         ) : cabinetScreen === 'profile' ? (
           <ProfileScreen
             email={session.email}
@@ -308,6 +337,7 @@ export default function App() {
           <HomeScreen
             session={session}
             notice={cabinetNotice}
+            onOpenOrders={openOrders}
             onOpenCart={openCart}
             onOpenProfile={openProfile}
             onOpenChangePassword={openChangePassword}

@@ -27,6 +27,7 @@ import type { UserCart } from '../types/cart';
 type CartScreenProps = {
   email: string;
   onBack: () => void;
+  onOpenCheckout: () => void;
 };
 
 const cartPoints = ['Товари', 'Кількість', 'Підсумок'];
@@ -51,7 +52,7 @@ const mockProducts = [
   },
 ];
 
-export function CartScreen({ email, onBack }: CartScreenProps) {
+export function CartScreen({ email, onBack, onOpenCheckout }: CartScreenProps) {
   const [cart, setCart] = useState<UserCart | null>(null);
   const [isHydrating, setIsHydrating] = useState(true);
   const [message, setMessage] = useState('');
@@ -101,13 +102,14 @@ export function CartScreen({ email, onBack }: CartScreenProps) {
 
   const totals = useMemo(() => calculateCartTotals(cart?.items ?? []), [cart?.items]);
 
-  const handleCheckoutInfo = () => {
+  const handleCheckout = () => {
     if (!cart?.items.length) {
       setMessage('Спочатку додайте хоча б один товар у кошик.');
       return;
     }
 
-    setMessage('Оформлення замовлення стане наступним окремим модулем, але кошик уже готовий до цього кроку.');
+    setMessage('');
+    onOpenCheckout();
   };
 
   const handleAddProduct = async (product: (typeof mockProducts)[number]) => {
@@ -385,7 +387,7 @@ export function CartScreen({ email, onBack }: CartScreenProps) {
 
             <PrimaryButton
               title={totals.itemsCount ? 'Оформити замовлення' : 'Кошик порожній'}
-              onPress={handleCheckoutInfo}
+              onPress={handleCheckout}
               disabled={!totals.itemsCount}
             />
 
@@ -393,8 +395,8 @@ export function CartScreen({ email, onBack }: CartScreenProps) {
               <Pressable onPress={onBack}>
                 <Text style={styles.linkText}>Назад до кабінету</Text>
               </Pressable>
-              <Pressable onPress={handleCheckoutInfo}>
-                <Text style={styles.linkText}>Що далі?</Text>
+              <Pressable onPress={handleCheckout}>
+                <Text style={styles.linkText}>До оформлення</Text>
               </Pressable>
             </View>
 

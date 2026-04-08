@@ -182,6 +182,46 @@ export async function removeItemFromUserCart(email: string, itemId: string) {
   });
 }
 
+export async function clearUserCart(email: string) {
+  const currentCart = await ensureUserCart(email);
+
+  return saveUserCart({
+    ...currentCart,
+    items: [],
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+export async function mergeItemsIntoUserCart(email: string, items: CartItem[]) {
+  const currentCart = await ensureUserCart(email);
+  const nextItems = [...currentCart.items];
+
+  items.forEach((item) => {
+    const existingIndex = nextItems.findIndex((cartItem) => cartItem.id === item.id);
+
+    if (existingIndex === -1) {
+      nextItems.push({
+        id: item.id,
+        title: item.title,
+        price: item.price,
+        quantity: item.quantity,
+      });
+      return;
+    }
+
+    nextItems[existingIndex] = {
+      ...nextItems[existingIndex],
+      quantity: nextItems[existingIndex].quantity + item.quantity,
+    };
+  });
+
+  return saveUserCart({
+    ...currentCart,
+    items: nextItems,
+    updatedAt: new Date().toISOString(),
+  });
+}
+
 export function calculateCartTotals(items: CartItem[]): CartTotals {
   return items.reduce<CartTotals>(
     (totals, item) => ({

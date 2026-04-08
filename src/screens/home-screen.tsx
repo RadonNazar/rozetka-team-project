@@ -1,14 +1,18 @@
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BrandMark } from '../components/brand-mark';
 import { PrimaryButton } from '../components/primary-button';
+import { loadUserOrders } from '../storage/orders-storage';
 import { colors } from '../theme/colors';
 import type { AuthSession } from '../types/auth';
+import type { UserOrder } from '../types/order';
 
 type HomeScreenProps = {
   session: AuthSession;
   notice?: string;
+  onOpenOrders: () => void;
   onOpenCart: () => void;
   onOpenProfile: () => void;
   onOpenChangePassword: () => void;
@@ -25,11 +29,43 @@ const quickSections = [
 export function HomeScreen({
   session,
   notice = '',
+  onOpenOrders,
   onOpenCart,
   onOpenProfile,
   onOpenChangePassword,
   onLogout,
 }: HomeScreenProps) {
+  const [orders, setOrders] = useState<UserOrder[]>([]);
+  const [isOrdersLoading, setIsOrdersLoading] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const hydrateOrders = async () => {
+      setIsOrdersLoading(true);
+      const storedOrders = await loadUserOrders(session.email);
+
+      if (!isMounted) {
+        return;
+      }
+
+      setOrders(storedOrders);
+      setIsOrdersLoading(false);
+    };
+
+    void hydrateOrders();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [session.email]);
+
+  const latestOrder = orders[0] ?? null;
+  const ordersTotalLabel = `${orders.length} ${orders.length === 1 ? 'замовлення' : 'замовлень'}`;
+  const latestOrderDate = latestOrder
+    ? new Date(latestOrder.createdAt).toLocaleString('uk-UA')
+    : '';
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.topBand} />
@@ -52,6 +88,44 @@ export function HomeScreen({
           </Text>
         </View>
 
+        <View style={styles.ordersCard}>
+          <Text style={styles.sectionLabel}>Замовлення користувача</Text>
+
+          {isOrdersLoading ? (
+            <View style={styles.ordersLoader}>
+              <ActivityIndicator size="small" color={colors.accent} />
+            </View>
+          ) : latestOrder ? (
+            <>
+              <View style={styles.orderMetricsRow}>
+                <View style={styles.orderMetricBox}>
+                  <Text style={styles.orderMetricLabel}>Усього</Text>
+                  <Text style={styles.orderMetricValue}>{ordersTotalLabel}</Text>
+                </View>
+                <View style={styles.orderMetricBox}>
+                  <Text style={styles.orderMetricLabel}>Останнє</Text>
+                  <Text style={styles.orderMetricValue}>{latestOrder.orderNumber}</Text>
+                </View>
+              </View>
+
+              <View style={styles.latestOrderCard}>
+                <Text style={styles.latestOrderTitle}>Останнє оформлене замовлення</Text>
+                <Text style={styles.latestOrderMeta}>
+                  {latestOrder.totals.itemsCount} од. • {latestOrder.totals.subtotal.toLocaleString('uk-UA')} грн
+                </Text>
+                <Text style={styles.latestOrderMeta}>
+                  {latestOrder.recipientCity} • {latestOrderDate}
+                </Text>
+                <Text style={styles.latestOrderStatus}>Статус: оформлено</Text>
+              </View>
+            </>
+          ) : (
+            <Text style={styles.ordersEmptyText}>
+              Замовлень ще немає. Після оформлення з кошика тут відразу з’явиться остання покупка.
+            </Text>
+          )}
+        </View>
+
         <View style={styles.grid}>
           {quickSections.map((item) => (
             <View key={item.title} style={styles.gridItem}>
@@ -69,6 +143,8 @@ export function HomeScreen({
           </Text>
         </View>
 
+        <PrimaryButton title="Мої замовлення" onPress={onOpenOrders} />
+        <View style={styles.actionsGap} />
         <PrimaryButton title="Мій кошик" onPress={onOpenCart} />
         <View style={styles.actionsGap} />
         <PrimaryButton title="Мій профіль" onPress={onOpenProfile} variant="secondary" />
@@ -137,6 +213,19 @@ const styles = StyleSheet.create({
       height: 10,
     },
   },
+  ordersCard: {
+    marginTop: 18,
+    padding: 22,
+    borderRadius: 24,
+    backgroundColor: colors.card,
+    shadowColor: colors.shadow,
+    shadowOpacity: 0.1,
+    shadowRadius: 18,
+    shadowOffset: {
+      width: 0,
+      height: 10,
+    },
+  },
   sectionLabel: {
     fontSize: 12,
     fontWeight: '800',
@@ -153,6 +242,71 @@ const styles = StyleSheet.create({
     marginTop: 8,
     fontSize: 14,
     lineHeight: 20,
+    color: colors.textMutedDark,
+  },
+  ordersLoader: {
+    minHeight: 72,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  orderMetricsRow: {
+    marginTop: 14,
+    flexDirection: 'row',
+    gap: 12,
+  },
+  orderMetricBox: {
+    flex: 1,
+    minHeight: 86,
+    padding: 16,
+    borderRadius: 18,
+    backgroundColor: colors.cardMuted,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    justifyContent: 'space-between',
+  },
+  orderMetricLabel: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: colors.textMutedDark,
+  },
+  orderMetricValue: {
+    marginTop: 10,
+    fontSize: 20,
+    lineHeight: 24,
+    fontWeight: '900',
+    color: colors.textDark,
+  },
+  latestOrderCard: {
+    marginTop: 14,
+    padding: 18,
+    borderRadius: 20,
+    backgroundColor: colors.successBg,
+    borderWidth: 1,
+    borderColor: colors.successBorder,
+  },
+  latestOrderTitle: {
+    fontSize: 18,
+    lineHeight: 22,
+    fontWeight: '800',
+    color: colors.textDark,
+  },
+  latestOrderMeta: {
+    marginTop: 8,
+    fontSize: 14,
+    lineHeight: 20,
+    color: colors.textMutedDark,
+  },
+  latestOrderStatus: {
+    marginTop: 10,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '800',
+    color: colors.success,
+  },
+  ordersEmptyText: {
+    marginTop: 12,
+    fontSize: 14,
+    lineHeight: 21,
     color: colors.textMutedDark,
   },
   grid: {
