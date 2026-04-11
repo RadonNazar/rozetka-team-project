@@ -1,0 +1,162 @@
+import type { ProductCategory, ProductItem } from '../types/product';
+
+export const catalogCategories: Array<{
+  id: ProductCategory;
+  title: string;
+  description: string;
+}> = [
+  {
+    id: 'smartphones',
+    title: 'Смартфони',
+    description: 'Apple, Samsung та інші хіти сезону.',
+  },
+  {
+    id: 'laptops',
+    title: 'Ноутбуки',
+    description: 'Для навчання, роботи й мобільного офісу.',
+  },
+  {
+    id: 'audio',
+    title: 'Аудіо',
+    description: 'Навушники, колонки й персональний звук.',
+  },
+  {
+    id: 'gaming',
+    title: 'Геймінг',
+    description: 'Консолі, аксесуари та все для гри.',
+  },
+  {
+    id: 'home',
+    title: 'Дім',
+    description: 'Техніка для комфорту та затишку.',
+  },
+  {
+    id: 'accessories',
+    title: 'Аксесуари',
+    description: 'Кабелі, зарядки та корисні дрібниці.',
+  },
+];
+
+export const productCatalog: ProductItem[] = [
+  {
+    id: 'iphone-15-128-black',
+    title: 'Apple iPhone 15 128GB Black',
+    subtitle: 'Смартфон із Dynamic Island і камерою 48 Мп',
+    category: 'smartphones',
+    brand: 'Apple',
+    price: 38999,
+    previousPrice: 40999,
+    badge: 'Топ продажів',
+    rating: 4.9,
+    reviewsCount: 314,
+  },
+  {
+    id: 'galaxy-s24-256',
+    title: 'Samsung Galaxy S24 256GB Onyx Black',
+    subtitle: 'Флагман із Galaxy AI та AMOLED 120 Гц',
+    category: 'smartphones',
+    brand: 'Samsung',
+    price: 34999,
+    previousPrice: 36999,
+    badge: 'Новинка',
+    rating: 4.8,
+    reviewsCount: 221,
+  },
+  {
+    id: 'macbook-air-m3-13',
+    title: 'Apple MacBook Air 13" M3 16/512GB',
+    subtitle: 'Легкий ноутбук для продуктивної роботи',
+    category: 'laptops',
+    brand: 'Apple',
+    price: 58999,
+    previousPrice: 61999,
+    badge: 'Хіт для роботи',
+    rating: 4.9,
+    reviewsCount: 142,
+  },
+  {
+    id: 'asus-vivobook-15',
+    title: 'ASUS Vivobook 15 Ryzen 7/16GB/512GB',
+    subtitle: 'Універсальний ноутбук для навчання і дому',
+    category: 'laptops',
+    brand: 'ASUS',
+    price: 28999,
+    previousPrice: 30999,
+    badge: 'Оптимальний вибір',
+    rating: 4.7,
+    reviewsCount: 98,
+  },
+  {
+    id: 'airpods-pro-2-usbc',
+    title: 'Apple AirPods Pro 2 USB-C',
+    subtitle: 'Адаптивний шумозаглушення та просторовий звук',
+    category: 'audio',
+    brand: 'Apple',
+    price: 11999,
+    previousPrice: 12999,
+    badge: 'Рекомендуємо',
+    rating: 4.9,
+    reviewsCount: 403,
+  },
+  {
+    id: 'jbl-charge-5',
+    title: 'JBL Charge 5 Blue',
+    subtitle: 'Потужна портативна колонка з вологозахистом',
+    category: 'audio',
+    brand: 'JBL',
+    price: 6999,
+    previousPrice: 7499,
+    rating: 4.8,
+    reviewsCount: 176,
+  },
+  {
+    id: 'ps5-slim-digital',
+    title: 'Sony PlayStation 5 Slim Digital Edition',
+    subtitle: 'Консоль нового покоління для AAA-геймінгу',
+    category: 'gaming',
+    brand: 'Sony',
+    price: 23999,
+    previousPrice: 24999,
+    badge: 'Геймерський must-have',
+    rating: 4.9,
+    reviewsCount: 189,
+  },
+  {
+    id: 'dyson-v8-advanced',
+    title: 'Dyson V8 Advanced',
+    subtitle: 'Бездротовий пилосос для швидкого прибирання',
+    category: 'home',
+    brand: 'Dyson',
+    price: 16999,
+    previousPrice: 18499,
+    rating: 4.8,
+    reviewsCount: 87,
+  },
+  {
+    id: 'anker-powerbank-20k',
+    title: 'Anker Power Bank 20000 mAh',
+    subtitle: 'Швидка зарядка для смартфона, планшета й ноутбука',
+    category: 'accessories',
+    brand: 'Anker',
+    price: 2199,
+    previousPrice: 2599,
+    badge: 'Практичний аксесуар',
+    rating: 4.7,
+    reviewsCount: 512,
+  },
+  {
+    id: 'baseus-cable-100w',
+    title: 'Baseus USB-C Cable 100W 2m',
+    subtitle: 'Міцний кабель для швидкої зарядки і передачі даних',
+    category: 'accessories',
+    brand: 'Baseus',
+    price: 499,
+    previousPrice: 649,
+    rating: 4.6,
+    reviewsCount: 268,
+  },
+];
+
+export function getCatalogCategoryTitle(category: ProductCategory) {
+  return catalogCategories.find((item) => item.id === category)?.title ?? 'Категорія';
+}

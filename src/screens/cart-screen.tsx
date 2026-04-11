@@ -14,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BrandMark } from '../components/brand-mark';
 import { PrimaryButton } from '../components/primary-button';
+import { productCatalog } from '../data/catalog';
 import {
   addItemToUserCart,
   calculateCartTotals,
@@ -23,6 +24,7 @@ import {
 } from '../storage/cart-storage';
 import { colors } from '../theme/colors';
 import type { UserCart } from '../types/cart';
+import type { ProductItem } from '../types/product';
 
 type CartScreenProps = {
   email: string;
@@ -31,26 +33,7 @@ type CartScreenProps = {
 };
 
 const cartPoints = ['Товари', 'Кількість', 'Підсумок'];
-const mockProducts = [
-  {
-    id: 'iphone-15-128',
-    title: 'Apple iPhone 15 128GB Black',
-    subtitle: 'Смартфон',
-    price: 38999,
-  },
-  {
-    id: 'airpods-pro-2',
-    title: 'Apple AirPods Pro 2',
-    subtitle: 'Навушники',
-    price: 11999,
-  },
-  {
-    id: 'anker-20000',
-    title: 'Anker Power Bank 20000 mAh',
-    subtitle: 'Портативна батарея',
-    price: 2199,
-  },
-];
+const featuredCartProducts = productCatalog.slice(0, 5);
 
 export function CartScreen({ email, onBack, onOpenCheckout }: CartScreenProps) {
   const [cart, setCart] = useState<UserCart | null>(null);
@@ -112,7 +95,7 @@ export function CartScreen({ email, onBack, onOpenCheckout }: CartScreenProps) {
     onOpenCheckout();
   };
 
-  const handleAddProduct = async (product: (typeof mockProducts)[number]) => {
+  const handleAddProduct = async (product: ProductItem) => {
     setActiveProductId(product.id);
 
     try {
@@ -345,11 +328,12 @@ export function CartScreen({ email, onBack, onOpenCheckout }: CartScreenProps) {
               ]}>
               <Text style={styles.cardTitle}>Популярні товари</Text>
               <Text style={styles.cardSubtitle}>
-                Це стартовий mock-каталог для перевірки додавання товарів у кошик.
+                Ті самі товари, що й на головній сторінці каталогу. Можна швидко кинути потрібні
+                позиції в кошик і перейти до оформлення.
               </Text>
 
               <View style={styles.catalogList}>
-                {mockProducts.map((product) => (
+                {featuredCartProducts.map((product) => (
                   <View key={product.id} style={styles.catalogItem}>
                     <View style={styles.catalogInfo}>
                       <Text style={styles.catalogBadge}>{product.subtitle}</Text>
