@@ -5,6 +5,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -12,7 +13,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { BrandMark } from '../components/brand-mark';
 import { PrimaryButton } from '../components/primary-button';
 import {
+  catalogBrands,
   catalogCategories,
+  catalogPriceFilters,
   getCatalogCategoryTitle,
   productCatalog,
 } from '../data/catalog';
@@ -26,7 +29,7 @@ import { colors } from '../theme/colors';
 import type { AuthSession } from '../types/auth';
 import type { UserCart } from '../types/cart';
 import type { UserOrder } from '../types/order';
-import type { ProductCategory, ProductItem } from '../types/product';
+import type { ProductCategory, ProductItem, ProductPriceFilter } from '../types/product';
 
 type HomeScreenProps = {
   session: AuthSession;
@@ -39,9 +42,34 @@ type HomeScreenProps = {
 };
 
 type CatalogTab = 'all' | ProductCategory;
+type BrandFilter = 'all' | string;
 
 function formatPrice(value: number) {
   return `${value.toLocaleString('uk-UA')} грн`;
+}
+
+function normalizeValue(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function matchesPriceFilter(product: ProductItem, priceFilter: ProductPriceFilter) {
+  if (priceFilter === 'all') {
+    return true;
+  }
+
+  if (priceFilter === 'under-10000') {
+    return product.price < 10000;
+  }
+
+  if (priceFilter === '10000-30000') {
+    return product.price >= 10000 && product.price < 30000;
+  }
+
+  if (priceFilter === '30000-plus') {
+    return product.price >= 30000;
+  }
+
+  return typeof product.previousPrice === 'number' && product.previousPrice > product.price;
 }
 
 export function HomeScreen({
@@ -58,6 +86,9 @@ export function HomeScreen({
   const [isOrdersLoading, setIsOrdersLoading] = useState(true);
   const [isCartLoading, setIsCartLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState<CatalogTab>('all');
+  const [activeBrand, setActiveBrand] = useState<BrandFilter>('all');
+  const [activePriceFilter, setActivePriceFilter] = useState<ProductPriceFilter>('all');
+  const [searchQuery, setSearchQuery] = useState('');
   const [activeProductId, setActiveProductId] = useState('');
   const [catalogMessage, setCatalogMessage] = useState('');
 
@@ -94,17 +125,59 @@ export function HomeScreen({
   const cartTotals = useMemo(() => calculateCartTotals(cart?.items ?? []), [cart?.items]);
 
   const visibleProducts = useMemo(() => {
-    if (activeCategory === 'all') {
-      return productCatalog;
-    }
+    const normalizedSearchQuery = normalizeValue(searchQuery);
 
-    return productCatalog.filter((product) => product.category === activeCategory);
-  }, [activeCategory]);
+    return productCatalog.filter((product) => {
+      const matchesCategory =
+        activeCategory === 'all' ? true : product.category === activeCategory;
+      const matchesBrand = activeBrand === 'all' ? true : product.brand === activeBrand;
+      const matchesSearch = normalizedSearchQuery
+        ? [product.title, product.subtitle, product.brand, product.badge ?? '', getCatalogCategoryTitle(product.category)]
+            .some((value) => normalizeValue(value).includes(normalizedSearchQuery))
+        : true;
+      const matchesPrice = matchesPriceFilter(product, activePriceFilter);
+
+      return matchesCategory && matchesBrand && matchesSearch && matchesPrice;
+    });
+  }, [activeBrand, activeCategory, activePriceFilter, searchQuery]);
 
   const heroTitle =
     activeCategory === 'all'
-      ? 'Збирайте замовлення з каталогу Rozetka'
-      : `Добірка: ${getCatalogCategoryTitle(activeCategory)}`;
+      ? 'Знаходьте товари швидше'
+      : `Категорія: ${getCatalogCategoryTitle(activeCategory)}`;
+
+  const appliedFiltersCount = useMemo(() => {
+    let count = 0;
+
+    if (activeCategory !== 'all') {
+      count += 1;
+    }
+
+    if (activeBrand !== 'all') {
+      count += 1;
+    }
+
+    if (activePriceFilter !== 'all') {
+      count += 1;
+    }
+
+    if (searchQuery.trim()) {
+      count += 1;
+    }
+
+    return count;
+  }, [activeBrand, activeCategory, activePriceFilter, searchQuery]);
+
+  const resultsLabel = `${visibleProducts.length} ${
+    visibleProducts.length === 1 ? 'товар' : visibleProducts.length < 5 ? 'товари' : 'товарів'
+  }`;
+
+  const resetFilters = () => {
+    setActiveCategory('all');
+    setActiveBrand('all');
+    setActivePriceFilter('all');
+    setSearchQuery('');
+  };
 
   const handleAddProduct = async (product: ProductItem) => {
     setActiveProductId(product.id);
@@ -130,18 +203,22 @@ export function HomeScreen({
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.heroCard}>
-          <BrandMark subtitle="головна сторінка" />
+          <BrandMark subtitle="пошук і фільтрація" />
 
           <Text style={styles.heroTitle}>{heroTitle}</Text>
           <Text style={styles.heroSubtitle}>
-            Каталог уже готовий для перегляду: обирайте категорію, додавайте товари в кошик і
-            переходьте до оформлення без зайвих кроків.
+            Шукайте товари за назвою або брендом, комбінуйте категорію з фільтрами й швидко
+            відбирайте релевантні позиції каталогу.
           </Text>
 
           <View style={styles.heroMetricsRow}>
             <View style={styles.heroMetricBox}>
-              <Text style={styles.heroMetricLabel}>Товарів</Text>
-              <Text style={styles.heroMetricValue}>{productCatalog.length}</Text>
+              <Text style={styles.heroMetricLabel}>Результати</Text>
+              <Text style={styles.heroMetricValue}>{resultsLabel}</Text>
+            </View>
+            <View style={styles.heroMetricBox}>
+              <Text style={styles.heroMetricLabel}>Фільтри</Text>
+              <Text style={styles.heroMetricValue}>{appliedFiltersCount}</Text>
             </View>
             <View style={styles.heroMetricBox}>
               <Text style={styles.heroMetricLabel}>У кошику</Text>
@@ -149,27 +226,42 @@ export function HomeScreen({
                 {isCartLoading ? '...' : cartTotals.itemsCount}
               </Text>
             </View>
-            <View style={styles.heroMetricBox}>
-              <Text style={styles.heroMetricLabel}>Замовлень</Text>
-              <Text style={styles.heroMetricValue}>
-                {isOrdersLoading ? '...' : orders.length}
-              </Text>
-            </View>
           </View>
         </View>
 
         <View style={styles.catalogCard}>
-          <Text style={styles.sectionLabel}>Категорії</Text>
-          <Text style={styles.sectionTitle}>Вітрина товарів</Text>
+          <Text style={styles.sectionLabel}>Каталог</Text>
+          <Text style={styles.sectionTitle}>Пошук і фільтрація товарів</Text>
           <Text style={styles.sectionSubtitle}>
-            Це базовий каталог для мобільного застосунку: далі на нього легко накладуться пошук,
-            фільтри й картка товару.
+            Можна шукати за назвою, брендом або категорією, а також звужувати каталог за брендом і
+            ціновим діапазоном.
           </Text>
 
+          <View style={styles.searchCard}>
+            <Text style={styles.searchLabel}>Пошук по каталогу</Text>
+            <TextInput
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              placeholder="Наприклад: iPhone, Apple, ноутбук"
+              placeholderTextColor={colors.textMutedDark}
+              style={styles.searchInput}
+              selectionColor={colors.accent}
+            />
+            <View style={styles.resultsRow}>
+              <Text style={styles.resultsText}>Знайдено: {resultsLabel}</Text>
+              {appliedFiltersCount ? (
+                <Pressable onPress={resetFilters}>
+                  <Text style={styles.resetText}>Скинути все</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          </View>
+
+          <Text style={styles.filterGroupLabel}>Категорія</Text>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.categoryChipsRow}>
+            contentContainerStyle={styles.chipsRow}>
             <Pressable
               onPress={() => setActiveCategory('all')}
               style={({ pressed }) => [
@@ -206,56 +298,128 @@ export function HomeScreen({
             })}
           </ScrollView>
 
-          <View style={styles.productsList}>
-            {visibleProducts.map((product) => {
-              const isBusy = activeProductId === product.id;
+          <Text style={styles.filterGroupLabel}>Бренд</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.chipsRow}>
+            <Pressable
+              onPress={() => setActiveBrand('all')}
+              style={({ pressed }) => [
+                styles.brandChip,
+                activeBrand === 'all' && styles.brandChipActive,
+                pressed && styles.categoryChipPressed,
+              ]}>
+              <Text style={[styles.brandChipText, activeBrand === 'all' && styles.brandChipTextActive]}>
+                Усі бренди
+              </Text>
+            </Pressable>
+
+            {catalogBrands.map((brand) => {
+              const isActive = activeBrand === brand;
 
               return (
-                <View key={product.id} style={styles.productCard}>
-                  <View style={styles.productTopRow}>
-                    <View style={styles.productBrandWrap}>
-                      <Text style={styles.productBrand}>{product.brand}</Text>
-                      {product.badge ? <Text style={styles.productBadge}>{product.badge}</Text> : null}
-                    </View>
-                    <Text style={styles.productCategoryLabel}>
-                      {getCatalogCategoryTitle(product.category)}
-                    </Text>
-                  </View>
-
-                  <Text style={styles.productTitle}>{product.title}</Text>
-                  <Text style={styles.productSubtitle}>{product.subtitle}</Text>
-
-                  <View style={styles.productMetaRow}>
-                    <Text style={styles.productRating}>★ {product.rating.toFixed(1)}</Text>
-                    <Text style={styles.productReviews}>{product.reviewsCount} відгуків</Text>
-                  </View>
-
-                  <View style={styles.productBottomRow}>
-                    <View style={styles.priceBlock}>
-                      <Text style={styles.productPrice}>{formatPrice(product.price)}</Text>
-                      {product.previousPrice ? (
-                        <Text style={styles.productPreviousPrice}>
-                          {formatPrice(product.previousPrice)}
-                        </Text>
-                      ) : null}
-                    </View>
-
-                    <Pressable
-                      onPress={() => void handleAddProduct(product)}
-                      disabled={isBusy}
-                      style={({ pressed }) => [
-                        styles.addToCartButton,
-                        isBusy && styles.addToCartButtonDisabled,
-                        pressed && !isBusy && styles.addToCartButtonPressed,
-                      ]}>
-                      <Text style={styles.addToCartButtonText}>
-                        {isBusy ? 'Додаємо...' : 'В кошик'}
-                      </Text>
-                    </Pressable>
-                  </View>
-                </View>
+                <Pressable
+                  key={brand}
+                  onPress={() => setActiveBrand(brand)}
+                  style={({ pressed }) => [
+                    styles.brandChip,
+                    isActive && styles.brandChipActive,
+                    pressed && styles.categoryChipPressed,
+                  ]}>
+                  <Text style={[styles.brandChipText, isActive && styles.brandChipTextActive]}>
+                    {brand}
+                  </Text>
+                </Pressable>
               );
             })}
+          </ScrollView>
+
+          <Text style={styles.filterGroupLabel}>Ціна</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.chipsRow}>
+            {catalogPriceFilters.map((priceFilter) => {
+              const isActive = activePriceFilter === priceFilter.id;
+
+              return (
+                <Pressable
+                  key={priceFilter.id}
+                  onPress={() => setActivePriceFilter(priceFilter.id)}
+                  style={({ pressed }) => [
+                    styles.priceChip,
+                    isActive && styles.priceChipActive,
+                    pressed && styles.categoryChipPressed,
+                  ]}>
+                  <Text style={[styles.priceChipText, isActive && styles.priceChipTextActive]}>
+                    {priceFilter.title}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+
+          <View style={styles.productsList}>
+            {visibleProducts.length ? (
+              visibleProducts.map((product) => {
+                const isBusy = activeProductId === product.id;
+
+                return (
+                  <View key={product.id} style={styles.productCard}>
+                    <View style={styles.productTopRow}>
+                      <View style={styles.productBrandWrap}>
+                        <Text style={styles.productBrand}>{product.brand}</Text>
+                        {product.badge ? <Text style={styles.productBadge}>{product.badge}</Text> : null}
+                      </View>
+                      <Text style={styles.productCategoryLabel}>
+                        {getCatalogCategoryTitle(product.category)}
+                      </Text>
+                    </View>
+
+                    <Text style={styles.productTitle}>{product.title}</Text>
+                    <Text style={styles.productSubtitle}>{product.subtitle}</Text>
+
+                    <View style={styles.productMetaRow}>
+                      <Text style={styles.productRating}>★ {product.rating.toFixed(1)}</Text>
+                      <Text style={styles.productReviews}>{product.reviewsCount} відгуків</Text>
+                    </View>
+
+                    <View style={styles.productBottomRow}>
+                      <View style={styles.priceBlock}>
+                        <Text style={styles.productPrice}>{formatPrice(product.price)}</Text>
+                        {product.previousPrice ? (
+                          <Text style={styles.productPreviousPrice}>
+                            {formatPrice(product.previousPrice)}
+                          </Text>
+                        ) : null}
+                      </View>
+
+                      <Pressable
+                        onPress={() => void handleAddProduct(product)}
+                        disabled={isBusy}
+                        style={({ pressed }) => [
+                          styles.addToCartButton,
+                          isBusy && styles.addToCartButtonDisabled,
+                          pressed && !isBusy && styles.addToCartButtonPressed,
+                        ]}>
+                        <Text style={styles.addToCartButtonText}>
+                          {isBusy ? 'Додаємо...' : 'В кошик'}
+                        </Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                );
+              })
+            ) : (
+              <View style={styles.emptyResultsCard}>
+                <Text style={styles.emptyResultsTitle}>Нічого не знайдено</Text>
+                <Text style={styles.emptyResultsText}>
+                  Спробуйте інший запит або скиньте фільтри, щоб повернути повний каталог.
+                </Text>
+                <PrimaryButton title="Скинути фільтри" onPress={resetFilters} variant="secondary" />
+              </View>
+            )}
           </View>
         </View>
 
@@ -319,7 +483,7 @@ export function HomeScreen({
           <Text style={styles.sectionLabel}>{notice ? 'Остання дія' : 'Поточний статус'}</Text>
           <Text style={styles.noteText}>
             {notice ||
-              'Каталог уже працює локально: товари можна переглядати на головній сторінці та додавати в кошик.'}
+              'Пошук і фільтрація вже працюють локально: можна відбирати товари за назвою, брендом, категорією та ціною.'}
           </Text>
         </View>
 
@@ -456,8 +620,58 @@ const styles = StyleSheet.create({
     lineHeight: 21,
     color: colors.textMutedDark,
   },
-  categoryChipsRow: {
+  searchCard: {
     marginTop: 18,
+    padding: 16,
+    borderRadius: 18,
+    backgroundColor: colors.cardMuted,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+  },
+  searchLabel: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: colors.textMutedDark,
+  },
+  searchInput: {
+    marginTop: 10,
+    minHeight: 54,
+    paddingHorizontal: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    backgroundColor: colors.card,
+    color: colors.textDark,
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  resultsRow: {
+    marginTop: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  resultsText: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: colors.textMutedDark,
+    fontWeight: '700',
+  },
+  resetText: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: colors.accentDark,
+    fontWeight: '900',
+  },
+  filterGroupLabel: {
+    marginTop: 18,
+    fontSize: 13,
+    fontWeight: '800',
+    color: colors.textMutedDark,
+  },
+  chipsRow: {
+    marginTop: 12,
     paddingRight: 8,
     gap: 10,
   },
@@ -483,6 +697,46 @@ const styles = StyleSheet.create({
   },
   categoryChipTextActive: {
     color: colors.accentDark,
+  },
+  brandChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 11,
+    borderRadius: 999,
+    backgroundColor: '#f5f7fb',
+    borderWidth: 1,
+    borderColor: '#dde4ee',
+  },
+  brandChipActive: {
+    backgroundColor: '#ebf3ff',
+    borderColor: '#9ec4ff',
+  },
+  brandChipText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: colors.textDark,
+  },
+  brandChipTextActive: {
+    color: '#1d5fbf',
+  },
+  priceChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 11,
+    borderRadius: 999,
+    backgroundColor: '#fff8e8',
+    borderWidth: 1,
+    borderColor: '#f5d78a',
+  },
+  priceChipActive: {
+    backgroundColor: colors.warning,
+    borderColor: '#f0b100',
+  },
+  priceChipText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: colors.textDark,
+  },
+  priceChipTextActive: {
+    color: colors.textDark,
   },
   productsList: {
     marginTop: 18,
@@ -596,6 +850,25 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '900',
     color: colors.textLight,
+  },
+  emptyResultsCard: {
+    padding: 20,
+    borderRadius: 20,
+    backgroundColor: colors.cardMuted,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    gap: 12,
+  },
+  emptyResultsTitle: {
+    fontSize: 22,
+    lineHeight: 26,
+    fontWeight: '900',
+    color: colors.textDark,
+  },
+  emptyResultsText: {
+    fontSize: 14,
+    lineHeight: 21,
+    color: colors.textMutedDark,
   },
   catalogMessageCard: {
     marginTop: 16,

@@ -1,4 +1,4 @@
-import type { ProductCategory, ProductItem } from '../types/product';
+import type { ProductCategory, ProductItem, ProductPriceFilter } from '../types/product';
 
 export const catalogCategories: Array<{
   id: ProductCategory;
@@ -160,3 +160,18 @@ export const productCatalog: ProductItem[] = [
 export function getCatalogCategoryTitle(category: ProductCategory) {
   return catalogCategories.find((item) => item.id === category)?.title ?? 'Категорія';
 }
+
+export const catalogBrands = Array.from(new Set(productCatalog.map((item) => item.brand))).sort(
+  (left, right) => left.localeCompare(right, 'uk-UA')
+);
+
+export const catalogPriceFilters: Array<{
+  id: ProductPriceFilter;
+  title: string;
+}> = [
+  { id: 'all', title: 'Будь-яка ціна' },
+  { id: 'under-10000', title: 'До 10 000 грн' },
+  { id: '10000-30000', title: '10 000 – 30 000 грн' },
+  { id: '30000-plus', title: 'Від 30 000 грн' },
+  { id: 'discount-only', title: 'Лише зі знижкою' },
+];

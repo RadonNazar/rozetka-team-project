@@ -18,3 +18,10 @@ export type ProductItem = {
   rating: number;
   reviewsCount: number;
 };
+
+export type ProductPriceFilter =
+  | 'all'
+  | 'under-10000'
+  | '10000-30000'
+  | '30000-plus'
+  | 'discount-only';
