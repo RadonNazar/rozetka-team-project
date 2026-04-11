@@ -1,3 +1,5 @@
+import type { NovaPoshtaDeliveryDetails } from './delivery';
+
 export type AuthSession = {
   email: string;
   loggedInAt: string;
@@ -16,6 +18,7 @@ export type UserProfile = {
   phone: string;
   city: string;
   updatedAt: string;
+  novaPoshta?: NovaPoshtaDeliveryDetails;
 };
 
 export type AuthActionResult = {

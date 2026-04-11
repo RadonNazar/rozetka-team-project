@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { calculateCartTotals } from './cart-storage';
 import type { CartItem } from '../types/cart';
+import type { NovaPoshtaDeliveryDetails } from '../types/delivery';
 import type { CreateOrderPayload, PaymentMethod, UserOrder } from '../types/order';
 
 const ORDERS_STORAGE_KEY = 'rozetka-team-project:orders';
@@ -21,6 +22,42 @@ function isValidPaymentMethod(value: unknown): value is PaymentMethod {
   return value === 'card' || value === 'cash' || value === 'installments';
 }
 
+function isValidNovaPoshtaDeliveryDetails(
+  value: Partial<NovaPoshtaDeliveryDetails>
+): value is NovaPoshtaDeliveryDetails {
+  return (
+    value.provider === 'nova_poshta' &&
+    typeof value.city === 'string' &&
+    (value.pickupKind === 'branch' || value.pickupKind === 'postomat') &&
+    typeof value.pickupPointId === 'string' &&
+    typeof value.pickupPointLabel === 'string' &&
+    typeof value.pickupPointAddress === 'string'
+  );
+}
+
+function migrateLegacyDeliveryDetails(value: Partial<UserOrder>) {
+  if (
+    value.deliveryDetails &&
+    typeof value.deliveryDetails === 'object' &&
+    isValidNovaPoshtaDeliveryDetails(value.deliveryDetails)
+  ) {
+    return value.deliveryDetails;
+  }
+
+  if (typeof value.recipientCity !== 'string' || typeof value.orderNumber !== 'string') {
+    return null;
+  }
+
+  return {
+    provider: 'nova_poshta' as const,
+    city: value.recipientCity,
+    pickupKind: 'branch' as const,
+    pickupPointId: `legacy-${value.orderNumber}`,
+    pickupPointLabel: 'Відділення буде уточнено менеджером',
+    pickupPointAddress: `м. ${value.recipientCity}`,
+  };
+}
+
 function isValidOrder(value: Partial<UserOrder>): value is UserOrder {
   return (
     typeof value.id === 'string' &&
@@ -36,11 +73,32 @@ function isValidOrder(value: Partial<UserOrder>): value is UserOrder {
     typeof value.recipientFullName === 'string' &&
     typeof value.recipientPhone === 'string' &&
     typeof value.recipientCity === 'string' &&
+    value.deliveryDetails !== null &&
+    typeof value.deliveryDetails === 'object' &&
+    isValidNovaPoshtaDeliveryDetails(value.deliveryDetails) &&
     isValidPaymentMethod(value.paymentMethod) &&
     typeof value.comment === 'string' &&
     value.status === 'placed' &&
     typeof value.createdAt === 'string'
   );
+}
+
+function normalizeStoredOrder(value: unknown) {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+
+  const order = value as Partial<UserOrder>;
+  const deliveryDetails = migrateLegacyDeliveryDetails(order);
+
+  if (!deliveryDetails) {
+    return null;
+  }
+
+  return {
+    ...order,
+    deliveryDetails,
+  } as Partial<UserOrder>;
 }
 
 async function loadOrders() {
@@ -58,13 +116,10 @@ async function loadOrders() {
       return [] as UserOrder[];
     }
 
-    const orders = parsedValue.filter((item): item is UserOrder => {
-      if (!item || typeof item !== 'object') {
-        return false;
-      }
-
-      return isValidOrder(item as Partial<UserOrder>);
-    });
+    const orders = parsedValue
+      .map((item) => normalizeStoredOrder(item))
+      .filter((item): item is Partial<UserOrder> => item !== null)
+      .filter((item): item is UserOrder => isValidOrder(item));
 
     if (orders.length !== parsedValue.length) {
       await AsyncStorage.setItem(ORDERS_STORAGE_KEY, JSON.stringify(orders));
@@ -112,6 +167,14 @@ export async function createUserOrder(email: string, payload: CreateOrderPayload
     recipientFullName: payload.recipientFullName.trim(),
     recipientPhone: payload.recipientPhone.trim(),
     recipientCity: payload.recipientCity.trim(),
+    deliveryDetails: {
+      provider: 'nova_poshta',
+      city: payload.deliveryDetails.city.trim(),
+      pickupKind: payload.deliveryDetails.pickupKind,
+      pickupPointId: payload.deliveryDetails.pickupPointId,
+      pickupPointLabel: payload.deliveryDetails.pickupPointLabel.trim(),
+      pickupPointAddress: payload.deliveryDetails.pickupPointAddress.trim(),
+    },
     paymentMethod: payload.paymentMethod,
     comment: payload.comment.trim(),
     status: 'placed',

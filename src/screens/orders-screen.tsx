@@ -17,6 +17,7 @@ import { PrimaryButton } from '../components/primary-button';
 import { mergeItemsIntoUserCart } from '../storage/cart-storage';
 import { loadUserOrders } from '../storage/orders-storage';
 import { colors } from '../theme/colors';
+import type { NovaPoshtaPickupKind } from '../types/delivery';
 import type { PaymentMethod, UserOrder } from '../types/order';
 
 type OrdersScreenProps = {
@@ -41,6 +42,10 @@ function formatPaymentMethod(value: PaymentMethod) {
 
 function formatDate(value: string) {
   return new Date(value).toLocaleString('uk-UA');
+}
+
+function formatNovaPoshtaPickupKind(value: NovaPoshtaPickupKind) {
+  return value === 'postomat' ? 'Поштомат' : 'Відділення';
 }
 
 export function OrdersScreen({ email, onBack, onOpenCart }: OrdersScreenProps) {
@@ -255,6 +260,18 @@ export function OrdersScreen({ email, onBack, onOpenCart }: OrdersScreenProps) {
                           {order.comment ? (
                             <Text style={styles.recipientComment}>Коментар: {order.comment}</Text>
                           ) : null}
+                        </View>
+
+                        <View style={styles.deliveryCard}>
+                          <Text style={styles.deliveryTitle}>Доставка Новою поштою</Text>
+                          <Text style={styles.deliveryText}>
+                            {formatNovaPoshtaPickupKind(order.deliveryDetails.pickupKind)} •{' '}
+                            {order.deliveryDetails.pickupPointLabel}
+                          </Text>
+                          <Text style={styles.deliveryText}>{order.deliveryDetails.city}</Text>
+                          <Text style={styles.deliveryAddress}>
+                            {order.deliveryDetails.pickupPointAddress}
+                          </Text>
                         </View>
 
                         <View style={styles.itemsList}>
@@ -554,6 +571,32 @@ const styles = StyleSheet.create({
   },
   recipientComment: {
     marginTop: 10,
+    fontSize: 13,
+    lineHeight: 19,
+    color: colors.textMutedDark,
+  },
+  deliveryCard: {
+    marginTop: 12,
+    padding: 16,
+    borderRadius: 18,
+    backgroundColor: colors.successBg,
+    borderWidth: 1,
+    borderColor: colors.successBorder,
+  },
+  deliveryTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: colors.success,
+  },
+  deliveryText: {
+    marginTop: 8,
+    fontSize: 14,
+    lineHeight: 20,
+    color: colors.textDark,
+    fontWeight: '700',
+  },
+  deliveryAddress: {
+    marginTop: 8,
     fontSize: 13,
     lineHeight: 19,
     color: colors.textMutedDark,

@@ -1,8 +1,22 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import type { UserProfile } from '../types/auth';
+import type { NovaPoshtaDeliveryDetails } from '../types/delivery';
 
 const PROFILES_STORAGE_KEY = 'rozetka-team-project:profiles';
+
+function isValidNovaPoshtaDeliveryDetails(
+  value: Partial<NovaPoshtaDeliveryDetails>
+): value is NovaPoshtaDeliveryDetails {
+  return (
+    value.provider === 'nova_poshta' &&
+    typeof value.city === 'string' &&
+    (value.pickupKind === 'branch' || value.pickupKind === 'postomat') &&
+    typeof value.pickupPointId === 'string' &&
+    typeof value.pickupPointLabel === 'string' &&
+    typeof value.pickupPointAddress === 'string'
+  );
+}
 
 function isValidStoredProfile(value: Partial<UserProfile>): value is UserProfile {
   return (
@@ -10,7 +24,11 @@ function isValidStoredProfile(value: Partial<UserProfile>): value is UserProfile
     typeof value.fullName === 'string' &&
     typeof value.phone === 'string' &&
     typeof value.city === 'string' &&
-    typeof value.updatedAt === 'string'
+    typeof value.updatedAt === 'string' &&
+    (value.novaPoshta === undefined ||
+      (value.novaPoshta !== null &&
+        typeof value.novaPoshta === 'object' &&
+        isValidNovaPoshtaDeliveryDetails(value.novaPoshta)))
   );
 }
 

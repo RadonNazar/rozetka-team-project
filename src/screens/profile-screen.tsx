@@ -189,11 +189,13 @@ export function ProfileScreen({ email, onBack, onSaved }: ProfileScreenProps) {
     setIsSubmitting(true);
 
     try {
+      const existingProfile = await loadUserProfile(email);
       const nextProfile: UserProfile = {
         email: email.trim().toLowerCase(),
         fullName: values.fullName.trim(),
         phone: normalizePhone(values.phone),
         city: values.city.trim(),
+        novaPoshta: existingProfile?.novaPoshta,
         updatedAt: new Date().toISOString(),
       };
 

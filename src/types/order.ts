@@ -1,4 +1,5 @@
 import type { CartItem, CartTotals } from './cart';
+import type { NovaPoshtaDeliveryDetails } from './delivery';
 
 export type PaymentMethod = 'card' | 'cash' | 'installments';
 
@@ -9,6 +10,7 @@ export type CreateOrderPayload = {
   recipientFullName: string;
   recipientPhone: string;
   recipientCity: string;
+  deliveryDetails: NovaPoshtaDeliveryDetails;
   paymentMethod: PaymentMethod;
   comment: string;
 };
@@ -22,6 +24,7 @@ export type UserOrder = {
   recipientFullName: string;
   recipientPhone: string;
   recipientCity: string;
+  deliveryDetails: NovaPoshtaDeliveryDetails;
   paymentMethod: PaymentMethod;
   comment: string;
   status: OrderStatus;

@@ -15,12 +15,18 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { BrandMark } from '../components/brand-mark';
 import { PrimaryButton } from '../components/primary-button';
 import { TextField } from '../components/text-field';
+import {
+  getNovaPoshtaPickupPoint,
+  getNovaPoshtaPickupPoints,
+  novaPoshtaDirectory,
+} from '../data/nova-poshta';
 import { calculateCartTotals, clearUserCart, ensureUserCart } from '../storage/cart-storage';
 import { createUserOrder } from '../storage/orders-storage';
 import { loadUserProfile, saveUserProfile } from '../storage/profile-storage';
 import { colors } from '../theme/colors';
 import type { UserProfile } from '../types/auth';
 import type { UserCart } from '../types/cart';
+import type { NovaPoshtaPickupKind } from '../types/delivery';
 import type { PaymentMethod } from '../types/order';
 
 type CheckoutScreenProps = {
@@ -33,13 +39,15 @@ type CheckoutValues = {
   fullName: string;
   phone: string;
   city: string;
+  pickupKind: NovaPoshtaPickupKind;
+  pickupPointId: string;
   comment: string;
   paymentMethod: PaymentMethod | '';
 };
 
 type CheckoutErrors = Partial<Record<keyof CheckoutValues | 'cart', string>>;
 
-const checkoutPoints = ['Контакти', 'Оплата', 'Підтвердження'];
+const checkoutPoints = ['Контакти', 'Нова пошта', 'Оплата', 'Підтвердження'];
 const paymentOptions: Array<{
   value: PaymentMethod;
   title: string;
@@ -59,6 +67,23 @@ const paymentOptions: Array<{
     value: 'installments',
     title: 'Частинами',
     description: 'Базова підготовка для майбутньої інтеграції.',
+  },
+];
+
+const novaPoshtaPickupOptions: Array<{
+  value: NovaPoshtaPickupKind;
+  title: string;
+  description: string;
+}> = [
+  {
+    value: 'branch',
+    title: 'Відділення',
+    description: 'Класичне отримання у відділенні Нової пошти.',
+  },
+  {
+    value: 'postomat',
+    title: 'Поштомат',
+    description: 'Швидке отримання в поштоматі, якщо зручно забрати без черги.',
   },
 ];
 
@@ -97,12 +122,18 @@ function normalizePhone(value: string) {
   return normalized.replace(/\D/g, '');
 }
 
+function formatNovaPoshtaPickupKind(value: NovaPoshtaPickupKind) {
+  return value === 'postomat' ? 'Поштомат' : 'Відділення';
+}
+
 export function CheckoutScreen({ email, onBack, onPlaced }: CheckoutScreenProps) {
   const [cart, setCart] = useState<UserCart | null>(null);
   const [values, setValues] = useState<CheckoutValues>({
     fullName: buildDefaultFullName(email),
     phone: '',
     city: 'Київ',
+    pickupKind: 'branch',
+    pickupPointId: '',
     comment: '',
     paymentMethod: 'card',
   });
@@ -144,11 +175,22 @@ export function CheckoutScreen({ email, onBack, onPlaced }: CheckoutScreenProps)
         return;
       }
 
+      const defaultCity =
+        storedProfile?.novaPoshta?.city || storedProfile?.city || novaPoshtaDirectory[0]?.city || 'Київ';
+      const defaultPickupKind = storedProfile?.novaPoshta?.pickupKind ?? 'branch';
+      const defaultPickupPoints = getNovaPoshtaPickupPoints(defaultCity, defaultPickupKind);
+      const defaultPickupPointId =
+        defaultPickupPoints.find((item) => item.id === storedProfile?.novaPoshta?.pickupPointId)?.id ??
+        defaultPickupPoints[0]?.id ??
+        '';
+
       setCart(storedCart);
       setValues({
         fullName: storedProfile?.fullName || buildDefaultFullName(email),
         phone: storedProfile?.phone || '',
-        city: storedProfile?.city || 'Київ',
+        city: defaultCity,
+        pickupKind: defaultPickupKind,
+        pickupPointId: defaultPickupPointId,
         comment: '',
         paymentMethod: 'card',
       });
@@ -164,6 +206,37 @@ export function CheckoutScreen({ email, onBack, onPlaced }: CheckoutScreenProps)
 
   const totals = useMemo(() => calculateCartTotals(cart?.items ?? []), [cart?.items]);
 
+  const availablePickupPoints = useMemo(() => {
+    return getNovaPoshtaPickupPoints(values.city, values.pickupKind);
+  }, [values.city, values.pickupKind]);
+
+  const selectedPickupPoint = useMemo(() => {
+    return getNovaPoshtaPickupPoint(values.city, values.pickupKind, values.pickupPointId);
+  }, [values.city, values.pickupKind, values.pickupPointId]);
+
+  useEffect(() => {
+    if (!availablePickupPoints.length) {
+      if (values.pickupPointId) {
+        setValues((current) => ({
+          ...current,
+          pickupPointId: '',
+        }));
+      }
+      return;
+    }
+
+    const currentPointStillAvailable = availablePickupPoints.some(
+      (item) => item.id === values.pickupPointId
+    );
+
+    if (!currentPointStillAvailable) {
+      setValues((current) => ({
+        ...current,
+        pickupPointId: availablePickupPoints[0]?.id ?? '',
+      }));
+    }
+  }, [availablePickupPoints, values.pickupPointId]);
+
   const isSubmitDisabled = useMemo(() => {
     return (
       isHydrating ||
@@ -172,6 +245,7 @@ export function CheckoutScreen({ email, onBack, onPlaced }: CheckoutScreenProps)
       !values.fullName.trim() ||
       !values.phone.trim() ||
       !values.city.trim() ||
+      !values.pickupPointId ||
       !values.paymentMethod
     );
   }, [
@@ -180,6 +254,7 @@ export function CheckoutScreen({ email, onBack, onPlaced }: CheckoutScreenProps)
     totals.itemsCount,
     values.city,
     values.fullName,
+    values.pickupPointId,
     values.paymentMethod,
     values.phone,
   ]);
@@ -196,6 +271,46 @@ export function CheckoutScreen({ email, onBack, onPlaced }: CheckoutScreenProps)
       ...current,
       [field]: undefined,
       cart: undefined,
+    }));
+    setMessage('');
+  };
+
+  const handleSelectCity = (city: string) => {
+    setValues((current) => ({
+      ...current,
+      city,
+    }));
+
+    setErrors((current) => ({
+      ...current,
+      city: undefined,
+      pickupPointId: undefined,
+    }));
+    setMessage('');
+  };
+
+  const handleSelectPickupKind = (pickupKind: NovaPoshtaPickupKind) => {
+    setValues((current) => ({
+      ...current,
+      pickupKind,
+    }));
+
+    setErrors((current) => ({
+      ...current,
+      pickupPointId: undefined,
+    }));
+    setMessage('');
+  };
+
+  const handleSelectPickupPoint = (pickupPointId: string) => {
+    setValues((current) => ({
+      ...current,
+      pickupPointId,
+    }));
+
+    setErrors((current) => ({
+      ...current,
+      pickupPointId: undefined,
     }));
     setMessage('');
   };
@@ -239,6 +354,10 @@ export function CheckoutScreen({ email, onBack, onPlaced }: CheckoutScreenProps)
       nextErrors.city = 'Вкажіть місто отримувача.';
     }
 
+    if (!values.pickupPointId || !selectedPickupPoint) {
+      nextErrors.pickupPointId = 'Оберіть відділення або поштомат Нової пошти.';
+    }
+
     if (!values.paymentMethod) {
       nextErrors.paymentMethod = 'Оберіть спосіб оплати.';
     }
@@ -249,7 +368,7 @@ export function CheckoutScreen({ email, onBack, onPlaced }: CheckoutScreenProps)
   const handleOrderHint = () => {
     setMessageTone('neutral');
     setMessage(
-      'Замовлення збережеться локально в застосунку. Дані Нової пошти підключимо окремим наступним модулем.'
+      'Дані Нової пошти вже додаються до замовлення: місто, тип точки видачі й конкретне відділення або поштомат.'
     );
   };
 
@@ -272,11 +391,29 @@ export function CheckoutScreen({ email, onBack, onPlaced }: CheckoutScreenProps)
     setIsSubmitting(true);
 
     try {
+      const activePickupPoint = selectedPickupPoint;
+
+      if (!activePickupPoint) {
+        setMessageTone('error');
+        setMessage('Не вдалося визначити точку видачі Нової пошти. Оберіть її ще раз.');
+        return;
+      }
+
+      const deliveryDetails = {
+        provider: 'nova_poshta' as const,
+        city: values.city.trim(),
+        pickupKind: values.pickupKind,
+        pickupPointId: activePickupPoint.id,
+        pickupPointLabel: activePickupPoint.label,
+        pickupPointAddress: activePickupPoint.address,
+      };
+
       const nextProfile: UserProfile = {
         email: email.trim().toLowerCase(),
         fullName: values.fullName.trim(),
         phone: normalizePhone(values.phone),
         city: values.city.trim(),
+        novaPoshta: deliveryDetails,
         updatedAt: new Date().toISOString(),
       };
 
@@ -287,13 +424,14 @@ export function CheckoutScreen({ email, onBack, onPlaced }: CheckoutScreenProps)
         recipientFullName: values.fullName,
         recipientPhone: normalizePhone(values.phone),
         recipientCity: values.city,
+        deliveryDetails,
         paymentMethod: values.paymentMethod || 'card',
         comment: values.comment,
       });
 
       await clearUserCart(email);
       onPlaced(
-        `Замовлення ${order.orderNumber} оформлено. ${order.totals.itemsCount} од. на суму ${order.totals.subtotal.toLocaleString('uk-UA')} грн.`
+        `Замовлення ${order.orderNumber} оформлено. ${order.totals.itemsCount} од. на суму ${order.totals.subtotal.toLocaleString('uk-UA')} грн. Доставка: ${formatNovaPoshtaPickupKind(order.deliveryDetails.pickupKind)} ${order.deliveryDetails.pickupPointLabel}.`
       );
     } catch {
       setMessageTone('error');
@@ -432,14 +570,98 @@ export function CheckoutScreen({ email, onBack, onPlaced }: CheckoutScreenProps)
                 keyboardType="phone-pad"
                 error={errors.phone}
               />
-              <TextField
-                label="Місто"
-                placeholder="Наприклад, Київ"
-                value={values.city}
-                onChangeText={handleChange('city')}
-                autoCapitalize="words"
-                error={errors.city}
-              />
+              <View style={styles.deliverySection}>
+                <Text style={styles.deliveryLabel}>Доставка Новою поштою</Text>
+                <Text style={styles.deliveryHint}>
+                  Оберіть місто й точку отримання. Збережемо їх для наступного замовлення.
+                </Text>
+
+                <View style={styles.deliveryChips}>
+                  {novaPoshtaDirectory.map((item) => {
+                    const isActive = values.city === item.city;
+
+                    return (
+                      <Pressable
+                        key={item.city}
+                        onPress={() => handleSelectCity(item.city)}
+                        style={({ pressed }) => [
+                          styles.deliveryChip,
+                          isActive && styles.deliveryChipActive,
+                          pressed && styles.deliveryChipPressed,
+                        ]}>
+                        <Text style={[styles.deliveryChipText, isActive && styles.deliveryChipTextActive]}>
+                          {item.city}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+                {errors.city ? <Text style={styles.sectionError}>{errors.city}</Text> : null}
+
+                <View style={styles.deliveryModes}>
+                  {novaPoshtaPickupOptions.map((option) => {
+                    const isActive = values.pickupKind === option.value;
+
+                    return (
+                      <Pressable
+                        key={option.value}
+                        onPress={() => handleSelectPickupKind(option.value)}
+                        style={({ pressed }) => [
+                          styles.deliveryModeCard,
+                          isActive && styles.deliveryModeCardActive,
+                          pressed && styles.paymentCardPressed,
+                        ]}>
+                        <Text style={[styles.deliveryModeTitle, isActive && styles.deliveryModeTitleActive]}>
+                          {option.title}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.deliveryModeDescription,
+                            isActive && styles.deliveryModeDescriptionActive,
+                          ]}>
+                          {option.description}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+
+                <View style={styles.pickupPointsList}>
+                  {availablePickupPoints.map((pickupPoint) => {
+                    const isActive = values.pickupPointId === pickupPoint.id;
+
+                    return (
+                      <Pressable
+                        key={pickupPoint.id}
+                        onPress={() => handleSelectPickupPoint(pickupPoint.id)}
+                        style={({ pressed }) => [
+                          styles.pickupPointCard,
+                          isActive && styles.pickupPointCardActive,
+                          pressed && styles.paymentCardPressed,
+                        ]}>
+                        <Text style={[styles.pickupPointTitle, isActive && styles.pickupPointTitleActive]}>
+                          {pickupPoint.label}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.pickupPointAddress,
+                            isActive && styles.pickupPointAddressActive,
+                          ]}>
+                          {pickupPoint.address}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+                {errors.pickupPointId ? (
+                  <Text style={styles.sectionError}>{errors.pickupPointId}</Text>
+                ) : selectedPickupPoint ? (
+                  <Text style={styles.deliverySummary}>
+                    Обрана точка: {formatNovaPoshtaPickupKind(values.pickupKind)} {selectedPickupPoint.label},{' '}
+                    {selectedPickupPoint.address}
+                  </Text>
+                ) : null}
+              </View>
               <TextField
                 label="Коментар до замовлення"
                 placeholder="Побажання до дзвінка або доставки"
@@ -448,7 +670,7 @@ export function CheckoutScreen({ email, onBack, onPlaced }: CheckoutScreenProps)
                 multiline
                 numberOfLines={4}
                 style={styles.commentInput}
-                hint="Дані Нової пошти додамо окремим наступним кроком."
+                hint="Наприклад: телефонувати перед відправкою або не дзвонити після 20:00."
               />
 
               <View style={styles.paymentSection}>
@@ -497,7 +719,7 @@ export function CheckoutScreen({ email, onBack, onPlaced }: CheckoutScreenProps)
               ]}>
               <Text style={styles.noteLabel}>Що входить у цей етап</Text>
               <Text style={styles.noteText}>
-                Після підтвердження ми створимо локальне замовлення, зафіксуємо його суму та очистимо кошик. Окремі модулі доставки й історії замовлень можна буде підключити без переробки основи.
+                Після підтвердження ми створимо локальне замовлення, збережемо деталі Нової пошти, суму покупки й очистимо кошик. Наступні модулі зможуть використати ці дані без переробки checkout.
               </Text>
             </Animated.View>
 
@@ -748,6 +970,123 @@ const styles = StyleSheet.create({
     minHeight: 112,
     paddingTop: 16,
     textAlignVertical: 'top',
+  },
+  deliverySection: {
+    marginBottom: 18,
+  },
+  deliveryLabel: {
+    marginBottom: 8,
+    fontSize: 13,
+    fontWeight: '800',
+    letterSpacing: 0.2,
+    color: colors.textMutedDark,
+  },
+  deliveryHint: {
+    marginBottom: 12,
+    fontSize: 13,
+    lineHeight: 19,
+    color: colors.textMutedDark,
+  },
+  deliveryChips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  deliveryChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: colors.cardMuted,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+  },
+  deliveryChipActive: {
+    backgroundColor: colors.accentSoft,
+    borderColor: colors.accent,
+  },
+  deliveryChipPressed: {
+    transform: [{ translateY: 1 }],
+  },
+  deliveryChipText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: colors.textDark,
+  },
+  deliveryChipTextActive: {
+    color: colors.accentDark,
+  },
+  deliveryModes: {
+    marginTop: 14,
+    gap: 12,
+  },
+  deliveryModeCard: {
+    padding: 16,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    backgroundColor: colors.cardMuted,
+  },
+  deliveryModeCardActive: {
+    borderColor: colors.accent,
+    backgroundColor: colors.accentSoft,
+  },
+  deliveryModeTitle: {
+    fontSize: 16,
+    lineHeight: 20,
+    fontWeight: '800',
+    color: colors.textDark,
+  },
+  deliveryModeTitleActive: {
+    color: colors.accentDark,
+  },
+  deliveryModeDescription: {
+    marginTop: 6,
+    fontSize: 13,
+    lineHeight: 19,
+    color: colors.textMutedDark,
+  },
+  deliveryModeDescriptionActive: {
+    color: colors.accentDark,
+  },
+  pickupPointsList: {
+    marginTop: 14,
+    gap: 12,
+  },
+  pickupPointCard: {
+    padding: 16,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    backgroundColor: colors.cardMuted,
+  },
+  pickupPointCardActive: {
+    borderColor: colors.accent,
+    backgroundColor: colors.card,
+  },
+  pickupPointTitle: {
+    fontSize: 15,
+    lineHeight: 20,
+    fontWeight: '800',
+    color: colors.textDark,
+  },
+  pickupPointTitleActive: {
+    color: colors.accentDark,
+  },
+  pickupPointAddress: {
+    marginTop: 6,
+    fontSize: 13,
+    lineHeight: 19,
+    color: colors.textMutedDark,
+  },
+  pickupPointAddressActive: {
+    color: colors.accentDark,
+  },
+  deliverySummary: {
+    marginTop: 10,
+    fontSize: 12,
+    lineHeight: 18,
+    color: colors.success,
+    fontWeight: '700',
   },
   paymentSection: {
     marginTop: 4,

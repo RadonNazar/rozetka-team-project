@@ -116,6 +116,9 @@ export function HomeScreen({
                 <Text style={styles.latestOrderMeta}>
                   {latestOrder.recipientCity} • {latestOrderDate}
                 </Text>
+                <Text style={styles.latestOrderMeta}>
+                  Нова пошта: {latestOrder.deliveryDetails.pickupPointLabel}
+                </Text>
                 <Text style={styles.latestOrderStatus}>Статус: оформлено</Text>
               </View>
             </>
